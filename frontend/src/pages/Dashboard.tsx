@@ -1,56 +1,61 @@
-import React, { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { 
-  BarChart, BookOpen, CheckCircle, Clock, 
-  Calendar, Award, ArrowUpRight, Brain,
-  MessageSquare, Lightbulb, Target
-} from 'lucide-react';
+"use client"
+
+import type React from "react"
+import { useState } from "react"
+import { useAuth } from "../contexts/AuthContext"
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "../components/ui/Card"
+import { Button } from "../components/ui/Button"
+import { Input } from "../components/ui/Input"
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer
-} from 'recharts';
+  BarChart,
+  BookOpen,
+  CheckCircle,
+  Clock,
+  Calendar,
+  Award,
+  ArrowUpRight,
+  Brain,
+  MessageSquare,
+  Lightbulb,
+  Target,
+} from "lucide-react"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
+import { useNavigate } from "react-router-dom"
 
 const Dashboard: React.FC = () => {
-  const { user } = useAuth();
-  const [feedback, setFeedback] = useState('');
-  const [question, setQuestion] = useState('');
+  const { user } = useAuth()
+  const [feedback, setFeedback] = useState("")
+  const [question, setQuestion] = useState("")
+
+  const navigate = useNavigate()
 
   const quizHistory = [
-    { date: '2024-01', score: 75 },
-    { date: '2024-02', score: 82 },
-    { date: '2024-03', score: 78 },
-    { date: '2024-04', score: 85 },
-    { date: '2024-05', score: 90 }
-  ];
+    { date: "2024-01", score: 75 },
+    { date: "2024-02", score: 82 },
+    { date: "2024-03", score: 78 },
+    { date: "2024-04", score: 85 },
+    { date: "2024-05", score: 90 },
+  ]
 
   const strengths = [
-    'Strong understanding of basic programming concepts',
-    'Excellent problem-solving skills',
-    'Quick grasp of algorithmic thinking'
-  ];
+    "Strong understanding of basic programming concepts",
+    "Excellent problem-solving skills",
+    "Quick grasp of algorithmic thinking",
+  ]
 
   const improvements = [
-    'Need more practice with advanced data structures',
-    'Can improve code optimization techniques',
-    'Review time complexity analysis'
-  ];
+    "Need more practice with advanced data structures",
+    "Can improve code optimization techniques",
+    "Review time complexity analysis",
+  ]
 
   // Mock data for the dashboard
   const stats = {
     coursesCompleted: 3,
     quizzesTaken: 12,
     progress: 68,
-    streak: 7
-  };
+    streak: 7,
+  }
 
   const roadmaps = [
     {
@@ -76,8 +81,8 @@ const Dashboard: React.FC = () => {
       nextLesson: "Data Cleaning",
       totalLessons: 18,
       completedLessons: 2,
-    }
-  ];
+    },
+  ]
 
   const upcomingQuizzes = [
     {
@@ -86,7 +91,7 @@ const Dashboard: React.FC = () => {
       date: "Today",
       difficulty: "Intermediate",
       questions: 15,
-      estimatedTime: "25 min"
+      estimatedTime: "25 min",
     },
     {
       id: 2,
@@ -94,33 +99,22 @@ const Dashboard: React.FC = () => {
       date: "Tomorrow",
       difficulty: "Beginner",
       questions: 10,
-      estimatedTime: "15 min"
-    }
-  ];
+      estimatedTime: "15 min",
+    },
+  ]
 
   return (
     <div className="container mx-auto max-w-7xl py-8">
       <div className="mb-8 flex flex-col justify-between md:flex-row md:items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Welcome back, {user?.name || 'Student'}!
-          </h1>
-          <p className="mt-1 text-gray-600 dark:text-gray-400">
-            Here's an overview of your learning journey
-          </p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Welcome back, {user?.name || "Student"}!</h1>
+          <p className="mt-1 text-gray-600 dark:text-gray-400">Here's an overview of your learning journey</p>
         </div>
         <div className="mt-4 flex space-x-3 md:mt-0">
-          <Button 
-            variant="default" 
-            leftIcon={<Brain size={18} />}
-          >
+          <Button variant="default" leftIcon={<Brain size={18} />}>
             Continue Learning
           </Button>
-          <Button 
-            variant="outline"
-          >
-            View All Courses
-          </Button>
+          <Button variant="outline">View All Courses</Button>
         </div>
       </div>
 
@@ -174,10 +168,7 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
             <div className="mt-3 h-2.5 w-full rounded-full bg-gray-200 dark:bg-gray-700">
-              <div 
-                className="h-2.5 rounded-full bg-teal-600" 
-                style={{ width: `${stats.progress}%` }}
-              ></div>
+              <div className="h-2.5 rounded-full bg-teal-600" style={{ width: `${stats.progress}%` }}></div>
             </div>
           </CardContent>
         </Card>
@@ -205,11 +196,7 @@ const Dashboard: React.FC = () => {
       <div className="mb-8">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">Your Learning Paths</h2>
-          <Button 
-            variant="ghost" 
-            size="sm"
-            rightIcon={<ArrowUpRight size={16} />}
-          >
+          <Button variant="ghost" size="sm" rightIcon={<ArrowUpRight size={16} />}>
             View All
           </Button>
         </div>
@@ -217,27 +204,25 @@ const Dashboard: React.FC = () => {
           {roadmaps.map((roadmap) => (
             <Card key={roadmap.id} hover>
               <CardContent className="p-6">
-                <h3 className="mb-2 text-lg font-semibold text-gray-900 dark:text-white">
-                  {roadmap.title}
-                </h3>
+                <h3 className="mb-2 text-lg font-semibold text-gray-900 dark:text-white">{roadmap.title}</h3>
                 <div className="mb-4 flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-                  <span>{roadmap.completedLessons} of {roadmap.totalLessons} lessons</span>
+                  <span>
+                    {roadmap.completedLessons} of {roadmap.totalLessons} lessons
+                  </span>
                   <span className="font-medium text-blue-600 dark:text-blue-400">{roadmap.progress}%</span>
                 </div>
                 <div className="mb-4 h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700">
-                  <div 
-                    className="h-2 rounded-full bg-blue-600" 
-                    style={{ width: `${roadmap.progress}%` }}
-                  ></div>
+                  <div className="h-2 rounded-full bg-blue-600" style={{ width: `${roadmap.progress}%` }}></div>
                 </div>
                 <div className="mb-4">
                   <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Next lesson:</p>
                   <p className="text-gray-600 dark:text-gray-400">{roadmap.nextLesson}</p>
                 </div>
-                <Button 
-                  variant="outline" 
-                  fullWidth 
+                <Button
+                  variant="outline"
+                  fullWidth
                   leftIcon={<BookOpen size={16} />}
+                  onClick={() => navigate(`/journey/${roadmap.id}`)}
                 >
                   Continue
                 </Button>
@@ -259,7 +244,10 @@ const Dashboard: React.FC = () => {
             <CardContent>
               <div className="space-y-4">
                 {upcomingQuizzes.map((quiz) => (
-                  <div key={quiz.id} className="flex items-center justify-between rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+                  <div
+                    key={quiz.id}
+                    className="flex items-center justify-between rounded-lg border border-gray-200 p-4 dark:border-gray-800"
+                  >
                     <div className="flex items-start space-x-4">
                       <div className="rounded-md bg-blue-100 p-2 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
                         <Brain size={24} />
@@ -278,20 +266,13 @@ const Dashboard: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                    >
+                    <Button variant="ghost" size="sm">
                       Start
                     </Button>
                   </div>
                 ))}
               </div>
-              <Button 
-                variant="outline" 
-                fullWidth 
-                className="mt-4"
-              >
+              <Button variant="outline" fullWidth className="mt-4">
                 View All Quizzes
               </Button>
             </CardContent>
@@ -303,9 +284,7 @@ const Dashboard: React.FC = () => {
           <Card className="bg-gradient-to-br from-blue-600 to-purple-700 text-white">
             <CardHeader>
               <CardTitle className="text-white">AI Recommendations</CardTitle>
-              <CardDescription className="text-blue-100">
-                Based on your learning patterns
-              </CardDescription>
+              <CardDescription className="text-blue-100">Based on your learning patterns</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -328,11 +307,7 @@ const Dashboard: React.FC = () => {
                   </p>
                 </div>
               </div>
-              <Button 
-                variant="outline" 
-                fullWidth 
-                className="mt-4 border-white text-white hover:bg-white/20"
-              >
+              <Button variant="outline" fullWidth className="mt-4 border-white text-white hover:bg-white/20">
                 Get Personalized Plan
               </Button>
             </CardContent>
@@ -356,13 +331,7 @@ const Dashboard: React.FC = () => {
                   <YAxis domain={[0, 100]} />
                   <Tooltip />
                   <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="score"
-                    stroke="#8b5cf6"
-                    strokeWidth={2}
-                    dot={{ r: 4 }}
-                  />
+                  <Line type="monotone" dataKey="score" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 4 }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -427,11 +396,7 @@ const Dashboard: React.FC = () => {
                 onChange={(e) => setQuestion(e.target.value)}
                 fullWidth
               />
-              <Button
-                variant="default"
-                fullWidth
-                leftIcon={<MessageSquare size={18} />}
-              >
+              <Button variant="default" fullWidth leftIcon={<MessageSquare size={18} />}>
                 Ask Question
               </Button>
             </div>
@@ -453,10 +418,7 @@ const Dashboard: React.FC = () => {
                 value={feedback}
                 onChange={(e) => setFeedback(e.target.value)}
               />
-              <Button
-                variant="outline"
-                fullWidth
-              >
+              <Button variant="outline" fullWidth>
                 Submit Feedback
               </Button>
             </div>
@@ -464,7 +426,7 @@ const Dashboard: React.FC = () => {
         </Card>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default Dashboard;
+export default Dashboard
