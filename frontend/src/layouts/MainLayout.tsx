@@ -4,14 +4,25 @@ import React from "react"
 import { Link, Outlet, useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
 import { Button } from "../components/ui/Button"
-import { BookOpen, Menu, X, Home, BarChart2, FileText, User, LogOut, Moon, Sun } from 'lucide-react'
+import { BookOpen, Menu, X, Home, BarChart2, FileText, User, LogOut, Moon, Sun } from "lucide-react"
 import { useTheme } from "../contexts/ThemeContext"
 
 const MainLayout: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false)
-  const { user, isAuthenticated, logout } = useAuth()
+  const { user, isAuthenticated, logout, loading } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-600"></div>
+          <p className="text-lg text-gray-700 dark:text-gray-300">Loading...</p>
+        </div>
+      </div>
+    )
+  }
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen)
@@ -21,19 +32,25 @@ const MainLayout: React.FC = () => {
     logout()
   }
 
+  const isParent = user?.user_type === "parent"
+  const isTeacher = user?.user_type === "teacher"
+
   const navItems = [
     { name: "Home", path: "/", icon: <Home size={20} /> },
     ...(isAuthenticated
       ? [
-          ...(
-              [
-                { name: "Dashboard", path: "/dashboard", icon: <BarChart2 size={20} /> },
-                { name: "Learning Paths", path: "/roadmap", icon: <BookOpen size={20} /> },
-                { name: "Quizzes", path: "/quizzes", icon: <FileText size={20} /> },
-              ]),
+          ...(isParent
+            ? [{ name: "Parent Dashboard", path: "/parent", icon: <BarChart2 size={20} /> }]
+            : isTeacher
+              ? [{ name: "Teacher Dashboard", path: "/teacher", icon: <BarChart2 size={20} /> }]
+              : [
+                  { name: "Dashboard", path: "/dashboard", icon: <BarChart2 size={20} /> },
+                  { name: "Learning Paths", path: "/roadmap", icon: <BookOpen size={20} /> },
+                  { name: "Quizzes", path: "/quizzes", icon: <FileText size={20} /> },
+                ]),
         ]
       : []),
-  ];
+  ]
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-50 dark:bg-gray-900">

@@ -11,6 +11,7 @@ interface User {
   email: string
   first_name: string
   last_name: string
+  user_type: "student" | "parent" | "teacher"
 }
 
 interface AuthContextType {
@@ -30,6 +31,7 @@ interface RegisterData {
   password2: string
   first_name: string
   last_name: string
+  user_type: string
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -43,11 +45,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Check if user is already logged in
   useEffect(() => {
     const checkAuth = async () => {
-      if (token) {
+      const storedToken = localStorage.getItem("token")
+      if (storedToken) {
+        setToken(storedToken)
         try {
           const response = await fetch("http://localhost:8000/api/auth/user/", {
             headers: {
-              Authorization: `Token ${token}`,
+              Authorization: `Token ${storedToken}`,
             },
           })
 
@@ -65,12 +69,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setToken(null)
         }
       }
-      setLoading(false)
+      setLoading(false) // Only set loading to false after the auth check is complete
     }
 
     checkAuth()
-  }, [token])
+  }, [])
 
+  // In the login function, make sure the token is being stored correctly
   const login = async (username: string, password: string) => {
     try {
       setLoading(true)
@@ -85,11 +90,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await response.json()
 
       if (response.ok) {
+        console.log("Login successful, token:", data.token)
         localStorage.setItem("token", data.token)
         setToken(data.token)
         setUser(data.user)
         toast.success("Login successful!")
-        navigate("/dashboard")
+
+        // Redirect based on user role
+        if (data.user.user_type === "parent") {
+          navigate("/parent")
+        } else if (data.user.user_type === "teacher") {
+          navigate("/teacher")
+        } else {
+          navigate("/dashboard")
+        }
       } else {
         toast.error(data.error || "Login failed")
       }
@@ -155,7 +169,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         token,
-        isAuthenticated: !!user,
+        isAuthenticated: !!user && !!token, // Make sure both user and token exist
         loading,
         login,
         register,

@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
-from .models import LearningPath, LearningJourney, Topic, Quiz, UserProfile
+from .models import LearningPath, LearningJourney, Topic, Quiz, UserProfile, UserStats, UserActivity, QuizResult, LearningInsight
 
 class QuizSerializer(serializers.ModelSerializer):
     class Meta:
@@ -45,6 +45,45 @@ class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
         fields = ['user_type']
+
+# User Stats Serializer
+class UserStatsSerializer(serializers.ModelSerializer):
+    courses_completed_this_month = serializers.SerializerMethodField()
+    quizzes_taken_this_week = serializers.SerializerMethodField()
+    streak = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = UserStats
+        fields = [
+            'courses_completed', 'quizzes_taken', 'overall_progress',
+            'courses_completed_this_month', 'quizzes_taken_this_week', 'streak'
+        ]
+    
+    def get_courses_completed_this_month(self, obj):
+        return obj.get_courses_completed_this_month()
+    
+    def get_quizzes_taken_this_week(self, obj):
+        return obj.get_quizzes_taken_this_week()
+    
+    def get_streak(self, obj):
+        return UserActivity.get_streak(obj.user)
+
+# Add these new serializers after the existing UserStatsSerializer
+
+class QuizResultSerializer(serializers.ModelSerializer):
+    date = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = QuizResult
+        fields = ['id', 'quiz', 'score', 'date']
+    
+    def get_date(self, obj):
+        return obj.date_taken.strftime('%Y-%m')
+
+class LearningInsightSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LearningInsight
+        fields = ['id', 'insight_type', 'description']
 
 # User Serializers
 class UserSerializer(serializers.ModelSerializer):

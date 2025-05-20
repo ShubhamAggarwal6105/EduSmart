@@ -1,29 +1,29 @@
 "use client"
 
-import type React from "react"
 import { Navigate, Outlet } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
 
-interface ProtectedRouteProps {
-  redirectPath?: string
-}
-
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ redirectPath = "/login" }) => {
+const ProtectedRoute = () => {
   const { isAuthenticated, loading } = useAuth()
 
+  // Show loading indicator while checking authentication
   if (loading) {
-    // You could render a loading spinner here
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-600"></div>
+          <p className="text-lg text-gray-700 dark:text-gray-300">Loading...</p>
+        </div>
       </div>
     )
   }
 
+  // Redirect to login if not authenticated
   if (!isAuthenticated) {
-    return <Navigate to={redirectPath} replace />
+    return <Navigate to="/login" />
   }
 
+  // Render the protected route
   return <Outlet />
 }
 
