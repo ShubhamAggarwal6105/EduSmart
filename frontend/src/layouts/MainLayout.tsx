@@ -138,16 +138,26 @@ const MainLayout: React.FC = () => {
                   </Link>
                 ))}
                 {isAuthenticated && (
-                  <button
-                    onClick={() => {
-                      handleLogout()
-                      setIsMenuOpen(false)
-                    }}
-                    className="flex items-center space-x-2 rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                  >
-                    <LogOut size={20} />
-                    <span>Logout</span>
-                  </button>
+                  <>
+                    <Link
+                      to="/profile"
+                      className="flex items-center space-x-2 rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <User size={20} />
+                      <span>Profile</span>
+                    </Link>
+                    <button
+                      onClick={() => {
+                        handleLogout()
+                        setIsMenuOpen(false)
+                      }}
+                      className="flex items-center space-x-2 rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                    >
+                      <LogOut size={20} />
+                      <span>Logout</span>
+                    </button>
+                  </>
                 )}
               </nav>
             </div>

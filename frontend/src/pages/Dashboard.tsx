@@ -24,6 +24,7 @@ import {
   MessageSquare,
   Lightbulb,
   Target,
+  Loader,
 } from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
 import toast from "react-hot-toast"
@@ -90,6 +91,13 @@ interface LearningInsight {
   description: string
 }
 
+interface Recommendation {
+  title: string
+  description: string
+  reason: string
+  match_percentage: number
+}
+
 const Dashboard: React.FC = () => {
   const { user, token } = useAuth()
   const navigate = useNavigate()
@@ -106,6 +114,8 @@ const Dashboard: React.FC = () => {
   })
   const [feedback, setFeedback] = useState("")
   const [question, setQuestion] = useState("")
+  const [isAskingQuestion, setIsAskingQuestion] = useState(false)
+  const [aiAnswer, setAiAnswer] = useState<string | null>(null)
 
   // Add new state variables for quiz history and learning insights
   const [quizHistory, setQuizHistory] = useState<QuizHistoryItem[]>([])
@@ -113,6 +123,8 @@ const Dashboard: React.FC = () => {
   const [improvements, setImprovements] = useState<LearningInsight[]>([])
   const [insightsLoading, setInsightsLoading] = useState(true)
   const [quizHistoryLoading, setQuizHistoryLoading] = useState(true)
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([])
+  const [recommendationsLoading, setRecommendationsLoading] = useState(true)
 
   // Mock data for parts that aren't yet connected to the backend
   const upcomingQuizzes = [
@@ -139,6 +151,7 @@ const Dashboard: React.FC = () => {
     const fetchDashboardData = async () => {
       try {
         console.log("Using token for requests:", token)
+        const loadingToast = toast.loading("Loading your dashboard data...")
 
         // Fetch user stats
         const statsResponse = await fetch("http://localhost:8000/api/user-stats/", {
@@ -154,6 +167,7 @@ const Dashboard: React.FC = () => {
           setStats(statsData)
         } else {
           console.error("Failed to fetch user stats:", await statsResponse.text())
+          // Use default stats if API fails
         }
 
         // Fetch learning paths
@@ -175,21 +189,34 @@ const Dashboard: React.FC = () => {
 
           // Fetch detailed data for each path to get journeys
           for (const path of recent) {
-            const detailResponse = await fetch(`http://localhost:8000/api/learning-paths/${path.id}/`, {
-              headers: {
-                Authorization: `Token ${token}`,
-              },
-            })
+            try {
+              const detailResponse = await fetch(`http://localhost:8000/api/learning-paths/${path.id}/`, {
+                headers: {
+                  Authorization: `Token ${token}`,
+                },
+              })
 
-            if (detailResponse.ok) {
-              const detailData = await detailResponse.json()
-              if (detailData.journeys) {
-                allJourneys.push(...detailData.journeys)
+              if (detailResponse.ok) {
+                const detailData = await detailResponse.json()
+                if (detailData.journeys) {
+                  // Assign user to journeys if not already assigned
+                  for (const journey of detailData.journeys) {
+                    // Add the journey to our list
+                    allJourneys.push(journey)
+                  }
+                }
               }
+            } catch (error) {
+              console.error(`Error fetching details for path ${path.id}:`, error)
             }
           }
 
           setJourneys(allJourneys)
+          toast.dismiss(loadingToast)
+        } else {
+          console.error("Failed to fetch learning paths:", await pathsResponse.text())
+          toast.error("Failed to load learning paths")
+          toast.dismiss(loadingToast)
         }
       } catch (error) {
         console.error("Error fetching dashboard data:", error)
@@ -283,17 +310,107 @@ const Dashboard: React.FC = () => {
       }
     }
 
+    const fetchRecommendations = async () => {
+      try {
+        setRecommendationsLoading(true)
+        const response = await fetch("http://localhost:8000/api/recommendations/", {
+          headers: {
+            Authorization: `Token ${token}`,
+          },
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          setRecommendations(data)
+        } else {
+          console.error("Failed to fetch recommendations:", await response.text())
+          // Fallback to mock data if API fails
+          setRecommendations([
+            {
+              title: "Machine Learning Fundamentals",
+              description: "Learn the basics of machine learning algorithms and applications",
+              reason: "Based on your interest in data science",
+              match_percentage: 95,
+            },
+            {
+              title: "Advanced JavaScript",
+              description: "Take your web development skills to the next level",
+              reason: "Complements your web development knowledge",
+              match_percentage: 88,
+            },
+            {
+              title: "Data Visualization",
+              description: "Learn to create compelling visualizations",
+              reason: "Builds on your Python skills",
+              match_percentage: 92,
+            },
+          ])
+        }
+      } catch (error) {
+        console.error("Error fetching recommendations:", error)
+        // Fallback to mock data if API fails
+        setRecommendations([
+          {
+            title: "Machine Learning Fundamentals",
+            description: "Learn the basics of machine learning algorithms and applications",
+            reason: "Based on your interest in data science",
+            match_percentage: 95,
+          },
+          {
+            title: "Advanced JavaScript",
+            description: "Take your web development skills to the next level",
+            reason: "Complements your web development knowledge",
+            match_percentage: 88,
+          },
+          {
+            title: "Data Visualization",
+            description: "Learn to create compelling visualizations",
+            reason: "Builds on your Python skills",
+            match_percentage: 92,
+          },
+        ])
+      } finally {
+        setRecommendationsLoading(false)
+      }
+    }
+
     fetchDashboardData()
     fetchQuizHistory()
     fetchLearningInsights()
+    fetchRecommendations()
   }, [token])
 
-  const handleAskQuestion = () => {
-    if (question.trim()) {
-      toast.success("Question submitted! Our AI tutor will respond shortly.")
-      setQuestion("")
-    } else {
+  const handleAskQuestion = async () => {
+    if (!question.trim()) {
       toast.error("Please enter a question")
+      return
+    }
+
+    setIsAskingQuestion(true)
+    setAiAnswer(null)
+
+    try {
+      const response = await fetch("http://localhost:8000/api/ask-ai-tutor/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Token ${token}`,
+        },
+        body: JSON.stringify({ question }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setAiAnswer(data.answer)
+      } else {
+        console.error("Failed to get AI tutor response:", await response.text())
+        toast.error("Failed to get answer from AI tutor")
+      }
+    } catch (error) {
+      console.error("Error asking AI tutor:", error)
+      toast.error("An error occurred while asking the AI tutor")
+    } finally {
+      setIsAskingQuestion(false)
     }
   }
 
@@ -304,6 +421,13 @@ const Dashboard: React.FC = () => {
     } else {
       toast.error("Please enter your feedback")
     }
+  }
+
+  const handleGetPersonalizedPlan = () => {
+    toast.loading("Generating your personalized plan...")
+
+    // Navigate to roadmap with a query parameter to trigger the modal
+    navigate("/roadmap?generate=true")
   }
 
   return (
@@ -539,31 +663,41 @@ const Dashboard: React.FC = () => {
         <div>
           <Card className="bg-gradient-to-br from-blue-600 to-purple-700 text-white">
             <CardHeader>
-              <CardTitle className="text-white">AI Recommendations</CardTitle>
+              <CardTitle className="text-white">Recommended for You</CardTitle>
               <CardDescription className="text-blue-100">Based on your learning patterns</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="rounded-lg bg-white/10 p-4 backdrop-blur-sm">
-                  <h4 className="font-medium">Review Neural Networks</h4>
-                  <p className="mt-1 text-sm text-blue-100">
-                    Based on your quiz performance, reviewing this topic could improve your understanding.
-                  </p>
+              {recommendationsLoading ? (
+                <div className="space-y-4">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="rounded-lg bg-white/10 p-4 backdrop-blur-sm">
+                      <Skeleton className="mb-2 h-5 w-3/4 bg-white/20" />
+                      <Skeleton className="h-4 w-full bg-white/20" />
+                    </div>
+                  ))}
                 </div>
-                <div className="rounded-lg bg-white/10 p-4 backdrop-blur-sm">
-                  <h4 className="font-medium">Try a New Learning Style</h4>
-                  <p className="mt-1 text-sm text-blue-100">
-                    Visual learning methods might help you grasp complex topics more effectively.
-                  </p>
+              ) : (
+                <div className="space-y-4">
+                  {recommendations.map((recommendation, index) => (
+                    <div key={index} className="rounded-lg bg-white/10 p-4 backdrop-blur-sm">
+                      <h4 className="font-medium">{recommendation.title}</h4>
+                      <p className="mt-1 text-sm text-blue-100">{recommendation.description}</p>
+                      <div className="mt-2 flex items-center justify-between">
+                        <span className="text-xs text-blue-200">{recommendation.reason}</span>
+                        <span className="text-xs font-medium text-blue-200">
+                          {recommendation.match_percentage}% Match
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="rounded-lg bg-white/10 p-4 backdrop-blur-sm">
-                  <h4 className="font-medium">Increase Study Frequency</h4>
-                  <p className="mt-1 text-sm text-blue-100">
-                    Shorter, more frequent study sessions may improve your retention rate.
-                  </p>
-                </div>
-              </div>
-              <Button variant="outline" fullWidth className="mt-4 border-white text-white hover:bg-white/20">
+              )}
+              <Button
+                variant="outline"
+                fullWidth
+                className="mt-4 border-white text-white hover:bg-white/20"
+                onClick={handleGetPersonalizedPlan}
+              >
                 Get Personalized Plan
               </Button>
             </CardContent>
@@ -692,15 +826,31 @@ const Dashboard: React.FC = () => {
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 className="w-full"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault()
+                    handleAskQuestion()
+                  }
+                }}
               />
               <Button
                 variant="default"
                 className="w-full"
-                leftIcon={<MessageSquare size={18} />}
+                leftIcon={
+                  isAskingQuestion ? <Loader className="animate-spin" size={18} /> : <MessageSquare size={18} />
+                }
                 onClick={handleAskQuestion}
+                disabled={isAskingQuestion || !question.trim()}
               >
-                Ask Question
+                {isAskingQuestion ? "Getting Answer..." : "Ask Question"}
               </Button>
+
+              {aiAnswer && (
+                <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
+                  <h4 className="mb-2 font-medium text-gray-900 dark:text-white">AI Tutor Response:</h4>
+                  <p className="text-gray-700 dark:text-gray-300 whitespace-pre-line">{aiAnswer}</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -786,96 +936,6 @@ const Dashboard: React.FC = () => {
                         onClick={() => navigate(`/journey/${journey.id}`)}
                       >
                         Continue <ChevronRight size={16} />
-                      </Button>
-                    </CardFooter>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 p-12 text-center dark:border-gray-700 dark:bg-gray-800/50">
-                <BookOpen className="mb-4 h-12 w-12 text-gray-400" />
-                <h3 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">No Active Journeys</h3>
-                <p className="mb-6 max-w-md text-gray-600 dark:text-gray-400">
-                  Start a learning journey to track your progress and continue your learning.
-                </p>
-                <Button onClick={() => navigate("/roadmap")} leftIcon={<Plus size={16} />}>
-                  Generate Learning Path
-                </Button>
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="paths">
-            {loading ? (
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {[1, 2, 3].map((i) => (
-                  <Card key={i}>
-                    <CardHeader>
-                      <Skeleton className="mb-2 h-6 w-3/4" />
-                      <Skeleton className="h-4 w-full" />
-                    </CardHeader>
-                    <CardContent>
-                      <Skeleton className="mb-4 h-4 w-1/3" />
-                      <Skeleton className="h-4 w-2/3" />
-                    </CardContent>
-                    <CardFooter>
-                      <Skeleton className="h-9 w-full" />
-                    </CardFooter>
-                  </Card>
-                ))}
-              </div>
-            ) : recentPaths.length > 0 ? (
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {recentPaths.map((path) => (
-                  <Card key={path.id} className="overflow-hidden">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-xl">{path.title}</CardTitle>
-                      <CardDescription className="line-clamp-2">{path.description}</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="mb-4 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                        <Clock size={16} />
-                        <span>{path.duration}</span>
-                      </div>
-                      {path.journeys && path.journeys.length > 0 && (
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
-                          <span className="font-medium">{path.journeys.length} journeys</span> in this path
-                        </div>
-                      )}
-                    </CardContent>
-                    <CardFooter className="bg-gray-50 pt-2 dark:bg-gray-800/50">
-                      <Button
-                        variant="ghost"
-                        className="w-full justify-between"
-                        onClick={() => {
-                          if (path.journeys && path.journeys.length > 0) {
-                            navigate(`/journey/${path.journeys[0].id}`)
-                          } else {
-                            // Fetch the detailed learning path to get journey IDs
-                            fetch(`http://localhost:8000/api/learning-paths/${path.id}/`, {
-                              headers: {
-                                Authorization: `Token ${token}`,
-                              },
-                            })
-                              .then((response) => {
-                                if (response.ok) return response.json()
-                                throw new Error("Failed to load path details")
-                              })
-                              .then((data) => {
-                                if (data.journeys && data.journeys.length > 0) {
-                                  navigate(`/journey/${data.journeys[0].id}`)
-                                } else {
-                                  toast.error("This learning path has no journeys yet")
-                                }
-                              })
-                              .catch((error) => {
-                                console.error("Error:", error)
-                                toast.error("Failed to load path details")
-                              })
-                          }
-                        }}
-                      >
-                        View Path <ChevronRight size={16} />
                       </Button>
                     </CardFooter>
                   </Card>

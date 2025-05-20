@@ -2,287 +2,462 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "../components/ui/Card"
+import { useNavigate } from "react-router-dom"
+import { useAuth } from "../contexts/AuthContext"
 import { Button } from "../components/ui/Button"
 import { Input } from "../components/ui/Input"
-import { Clock, CheckCircle } from "lucide-react"
-import { useNavigate } from "react-router-dom"
-import type { LearningPath } from "../services/api"
-import { api } from "../services/api"
+import { Loader, Plus, BookOpen, ChevronRight, X } from "lucide-react"
+import toast from "react-hot-toast"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/Dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/Tabs"
+import { Badge } from "../components/ui/Badge"
+import { Skeleton } from "../components/ui/Skeleton"
+
+interface LearningPath {
+  id: number
+  title: string
+  description: string
+  duration: string
+  match_percentage: number
+  journeys?: LearningJourney[]
+}
+
+interface LearningJourney {
+  id: number
+  title: string
+  description: string
+  total_lessons: number
+  completed_lessons: number
+  progress: number
+  next_lesson: string
+}
 
 const Roadmap: React.FC = () => {
-  const [targetDate, setTargetDate] = useState("")
-  const [studyHours, setStudyHours] = useState(10)
-  const [selectedSkills, setSelectedSkills] = useState<string[]>([])
-  const [learningJourney, setLearningJourney] = useState<any[]>([])
-  const [topPaths, setTopPaths] = useState<LearningPath[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { token } = useAuth()
   const navigate = useNavigate()
+  const [loading, setLoading] = useState(true)
+  const [paths, setPaths] = useState<LearningPath[]>([])
+  const [topPaths, setTopPaths] = useState<LearningPath[]>([])
+  const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [formData, setFormData] = useState({
+    target_date: "",
+    study_hours: 10,
+    selected_skills: [""] as string[],
+  })
 
-  const skills = ["Programming", "Data Science", "Web Development", "AI", "Math", "Physics", "Design"]
-
-  const toggleSkill = (skill: string) => {
-    setSelectedSkills((prevSkills) =>
-      prevSkills.includes(skill) ? prevSkills.filter((s) => s !== skill) : [...prevSkills, skill],
-    )
-  }
+  // Add this near the top of the component after the existing state declarations
+  const [searchParams] = useState(new URLSearchParams(window.location.search))
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchPaths = async () => {
       try {
-        setLoading(true)
-        // In a real app, this would fetch from the API
-        // For now, we'll use mock data with a delay to simulate API call
-        await new Promise((resolve) => setTimeout(resolve, 1000))
+        const response = await fetch("http://localhost:8000/api/learning-paths/", {
+          headers: {
+            Authorization: `Token ${token}`,
+          },
+        })
+        const data = await response.json()
+        setPaths(data)
 
-        // This would be the actual API calls:
-        // const topPathsData = await api.getTopLearningPaths()
-        // setTopPaths(topPathsData)
-
-        // Mock data for demonstration
-        setLearningJourney([
-          {
-            id: 1,
-            title: "Introduction to Programming",
-            weeks: "Week 1-2: Basic concepts and syntax",
-            progress: 100,
-            status: "Completed",
+        const topResponse = await fetch("http://localhost:8000/api/top-learning-paths/", {
+          headers: {
+            Authorization: `Token ${token}`,
           },
-          {
-            id: 2,
-            title: "Data Structures & Algorithms",
-            weeks: "Week 3-5: Arrays, lists, and basic algorithms",
-            progress: 60,
-            status: "In Progress",
-          },
-          {
-            id: 3,
-            title: "Web Development Basics",
-            weeks: "Week 6-8: HTML, CSS, and JavaScript",
-            progress: 0,
-            status: "Not Started",
-          },
-          {
-            id: 4,
-            title: "Advanced Topics",
-            weeks: "Week 9-12: Projects and specialized skills",
-            progress: 0,
-            status: "Not Started",
-          },
-        ])
-
-        setTopPaths([
-          {
-            id: 1,
-            title: "Machine Learning Fundamentals",
-            description: "Based on your programming progress",
-            duration: "8 weeks",
-            match_percentage: 95,
-          },
-          {
-            id: 2,
-            title: "Advanced Data Structures",
-            description: "Recommended for algorithm enthusiasts",
-            duration: "6 weeks",
-            match_percentage: 90,
-          },
-          {
-            id: 3,
-            title: "Web Development Bootcamp",
-            description: "Perfect next step for beginners",
-            duration: "12 weeks",
-            match_percentage: 85,
-          },
-        ])
-
-        setLoading(false)
-      } catch (err) {
-        console.error(err)
-        setError("Failed to load data")
+        })
+        const topData = await response.json()
+        setTopPaths(topData)
+      } catch (error) {
+        console.error("Error fetching learning paths:", error)
+      } finally {
         setLoading(false)
       }
     }
 
-    fetchData()
-  }, [])
+    fetchPaths()
+  }, [token])
 
-  const generateLearningPath = async () => {
+  // Add this useEffect after the existing useEffect
+  useEffect(() => {
+    // Check if the generate parameter is present in the URL
+    if (searchParams.get("generate") === "true") {
+      setIsGenerateModalOpen(true)
+
+      // Clear the toast if it exists
+      toast.dismiss()
+    }
+  }, [searchParams])
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setFormData((prev) => ({
+      ...prev,
+      [name]: name === "study_hours" ? Number.parseInt(value) || 0 : value,
+    }))
+  }
+
+  const handleSkillChange = (index: number, value: string) => {
+    const newSkills = [...formData.selected_skills]
+    newSkills[index] = value
+    setFormData((prev) => ({
+      ...prev,
+      selected_skills: newSkills,
+    }))
+  }
+
+  const addSkill = () => {
+    setFormData((prev) => ({
+      ...prev,
+      selected_skills: [...prev.selected_skills, ""],
+    }))
+  }
+
+  const removeSkill = (index: number) => {
+    const newSkills = [...formData.selected_skills]
+    newSkills.splice(index, 1)
+    setFormData((prev) => ({
+      ...prev,
+      selected_skills: newSkills.length ? newSkills : [""],
+    }))
+  }
+
+  const handleGeneratePath = async () => {
+    // Validate form
+    if (!formData.target_date) {
+      toast.error("Please select a target date")
+      return
+    }
+
+    if (formData.study_hours <= 0) {
+      toast.error("Study hours must be greater than 0")
+      return
+    }
+
+    if (formData.selected_skills.some((skill) => !skill.trim())) {
+      toast.error("Please fill in all skills or remove empty ones")
+      return
+    }
+
+    if (!token) {
+      toast.error("You must be logged in to generate a learning path")
+      return
+    }
+
+    setIsGenerating(true)
+    const toastId = toast.loading("Generating your personalized learning path...")
+
     try {
-      if (!targetDate) {
-        alert("Please select a target date")
-        return
-      }
-
-      // In a real app, this would call the API
-      const result = await api.generateLearningPath({
-        target_date: targetDate,
-        study_hours: studyHours,
-        selected_skills: selectedSkills
+      const response = await fetch("http://localhost:8000/api/generate-learning-path/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Token ${token}`,
+        },
+        body: JSON.stringify(formData),
       })
 
-      // For now, just show an alert
-      alert(
-        `${result.message}\n${result.path.description}\nDuration: ${result.path.duration} `,
-      )
-    } catch (err) {
-      console.error(err)
-      alert("Failed to generate learning path")
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error("Error response:", errorText)
+
+        try {
+          const errorData = JSON.parse(errorText)
+          throw new Error(errorData.error || `Failed with status: ${response.status}`)
+        } catch (e) {
+          throw new Error(`Failed with status: ${response.status}. Response: ${errorText}`)
+        }
+      }
+
+      const data = await response.json()
+      toast.success("Learning path generated successfully!", { id: toastId })
+      setIsGenerateModalOpen(false)
+
+      // Refresh the learning paths
+      const pathsResponse = await fetch("http://localhost:8000/api/learning-paths/", {
+        headers: {
+          Authorization: `Token ${token}`,
+        },
+      })
+      const pathsData = await pathsResponse.json()
+      setPaths(pathsData)
+
+      // Get the first journey ID from the newly created learning path
+      if (data.journeys && data.journeys.length > 0) {
+        // Navigate to the first journey of the learning path
+        navigate(`/journey/${data.journeys[0].id}`)
+      } else {
+        // Fetch the detailed learning path to get journey IDs
+        const detailResponse = await fetch(`http://localhost:8000/api/learning-paths/${data.id}/`, {
+          headers: {
+            Authorization: `Token ${token}`,
+          },
+        })
+
+        if (detailResponse.ok) {
+          const detailData = await detailResponse.json()
+          if (detailData.journeys && detailData.journeys.length > 0) {
+            navigate(`/journey/${detailData.journeys[0].id}`)
+          } else {
+            // If no journeys, just go to the dashboard
+            navigate("/dashboard")
+          }
+        } else {
+          // If detail fetch fails, go to dashboard
+          navigate("/dashboard")
+        }
+      }
+    } catch (error) {
+      console.error("Error generating learning path:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to generate learning path", { id: toastId })
+    } finally {
+      setIsGenerating(false)
     }
   }
 
+  const handleViewPath = async (pathId: number) => {
+    try {
+      // Fetch the detailed learning path to get journey IDs
+      const response = await fetch(`http://localhost:8000/api/learning-paths/${pathId}/`, {
+        headers: {
+          Authorization: `Token ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.journeys && data.journeys.length > 0) {
+          // Navigate to the first journey of the learning path
+          navigate(`/journey/${data.journeys[0].id}`)
+        } else {
+          toast.error("This learning path has no journeys yet")
+        }
+      } else {
+        toast.error("Failed to load learning path details")
+      }
+    } catch (error) {
+      console.error("Error fetching learning path details:", error)
+      toast.error("Failed to load learning path details")
+    }
+  }
+
+  const renderPathCard = (path: LearningPath) => (
+    <div
+      key={path.id}
+      className="flex flex-col rounded-lg border border-gray-200 bg-white shadow-sm transition-all hover:shadow-md dark:border-gray-700 dark:bg-gray-800"
+    >
+      <div className="flex flex-1 flex-col p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+            {path.duration}
+          </Badge>
+          <span className="text-sm font-medium text-green-600 dark:text-green-400">{path.match_percentage}% Match</span>
+        </div>
+        <h3 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">{path.title}</h3>
+        <p className="mb-4 flex-1 text-gray-600 dark:text-gray-400">{path.description}</p>
+        <Button variant="outline" className="mt-auto w-full justify-between" onClick={() => handleViewPath(path.id)}>
+          View Path <ChevronRight size={16} />
+        </Button>
+      </div>
+    </div>
+  )
+
   return (
-    <div className="container mx-auto max-w-7xl py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Learning Paths</h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-400">
-          Answer a few questions to create your personalized learning journey
-        </p>
+    <div className="container mx-auto px-4 py-8">
+      <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Learning Paths</h1>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">
+            Discover personalized learning paths tailored to your goals and interests.
+          </p>
+        </div>
+        <Button onClick={() => setIsGenerateModalOpen(true)} leftIcon={<Plus size={16} />}>
+          Generate Learning Path
+        </Button>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-2">
-        {/* Current Learning Journey */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Your Learning Roadmap</CardTitle>
-                <CardDescription>Track your progress through the curriculum</CardDescription>
-              </div>
-              <div className="rounded-full bg-primary-100 px-4 py-2 text-sm font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
-                40% Complete
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="relative">
-              {learningJourney.map((step, index) => (
-                <div key={step.id} className="mb-8 flex last:mb-0">
-                  <div className="relative flex flex-col items-center">
-                    <div
-                      className={`flex h-8 w-8 items-center justify-center rounded-full ${
-                        step.progress === 100
-                          ? "bg-green-500 text-white"
-                          : step.progress > 0
-                            ? "bg-primary-500 text-white"
-                            : "bg-gray-200 text-gray-500 dark:bg-gray-700"
-                      }`}
-                    >
-                      {step.progress === 100 ? <CheckCircle size={16} /> : index + 1}
-                    </div>
-                    {index < learningJourney.length - 1 && (
-                      <div className="h-full w-0.5 bg-gray-200 dark:bg-gray-700"></div>
-                    )}
-                  </div>
-                  <div className="ml-4 flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{step.title}</h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{step.weeks}</p>
-                    {step.progress > 0 && (
-                      <div className="mt-2">
-                        <div className="h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700">
-                          <div className="h-2 rounded-full bg-primary-500" style={{ width: `${step.progress}%` }}></div>
-                        </div>
-                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{step.progress}% Complete</p>
-                      </div>
-                    )}
-                    {step.progress === 0 && (
-                      <span className="mt-2 inline-block rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-                        {step.status}
-                      </span>
-                    )}
-                  </div>
+      <Tabs defaultValue="all" className="w-full">
+        <TabsList className="mb-6">
+          <TabsTrigger value="all">All Paths</TabsTrigger>
+          <TabsTrigger value="recommended">Recommended</TabsTrigger>
+          <TabsTrigger value="in-progress">In Progress</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="all">
+          {loading ? (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800"
+                >
+                  <Skeleton className="mb-4 h-6 w-24" />
+                  <Skeleton className="mb-2 h-8 w-3/4" />
+                  <Skeleton className="mb-4 h-24 w-full" />
+                  <Skeleton className="h-10 w-full" />
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Personalization Form */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Personalize Your Path</CardTitle>
-            <CardDescription>Tell us about your goals and preferences</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  What's your target completion date?
-                </label>
-                <Input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} fullWidth />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  How many hours can you study per week? ({studyHours} hours)
-                </label>
-                <input
-                  type="range"
-                  min="1"
-                  max="40"
-                  value={studyHours}
-                  onChange={(e) => setStudyHours(Number.parseInt(e.target.value))}
-                  className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-gray-200 dark:bg-gray-700"
-                />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Which skills are you most interested in?
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {skills.map((skill) => (
-                    <button
-                      key={skill}
-                      onClick={() => toggleSkill(skill)}
-                      className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-                        selectedSkills.includes(skill)
-                          ? "bg-primary-500 text-white"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                      }`}
-                    >
-                      {skill}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <Button fullWidth size="lg" className="mt-6" onClick={generateLearningPath}>
-                Generate My Learning Path
+          ) : paths.length > 0 ? (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">{paths.map((path) => renderPathCard(path))}</div>
+          ) : (
+            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 p-12 text-center dark:border-gray-700 dark:bg-gray-800/50">
+              <BookOpen className="mb-4 h-12 w-12 text-gray-400" />
+              <h3 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">No Learning Paths Yet</h3>
+              <p className="mb-6 max-w-md text-gray-600 dark:text-gray-400">
+                Generate your first personalized learning path to start your educational journey.
+              </p>
+              <Button onClick={() => setIsGenerateModalOpen(true)} leftIcon={<Plus size={16} />}>
+                Generate Learning Path
               </Button>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          )}
+        </TabsContent>
 
-      {/* Top Learning Paths */}
-      <div className="mt-12">
-        <h2 className="mb-6 text-2xl font-bold text-gray-900 dark:text-white">Recommended for You</h2>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {topPaths.map((path, index) => (
-            <Card key={path.id} hover>
-              <CardContent className="p-6">
-                <div className="mb-4 flex items-start justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{path.title}</h3>
-                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{path.description}</p>
+        <TabsContent value="recommended">
+          {loading ? (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800"
+                >
+                  <Skeleton className="mb-4 h-6 w-24" />
+                  <Skeleton className="mb-2 h-8 w-3/4" />
+                  <Skeleton className="mb-4 h-24 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ))}
+            </div>
+          ) : topPaths.length > 0 ? (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {topPaths.map((path) => renderPathCard(path))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 p-12 text-center dark:border-gray-700 dark:bg-gray-800/50">
+              <BookOpen className="mb-4 h-12 w-12 text-gray-400" />
+              <h3 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">No Recommendations Yet</h3>
+              <p className="mb-6 max-w-md text-gray-600 dark:text-gray-400">
+                Complete your profile or generate a learning path to get personalized recommendations.
+              </p>
+              <Button onClick={() => setIsGenerateModalOpen(true)} leftIcon={<Plus size={16} />}>
+                Generate Learning Path
+              </Button>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="in-progress">
+          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 p-12 text-center dark:border-gray-700 dark:bg-gray-800/50">
+            <BookOpen className="mb-4 h-12 w-12 text-gray-400" />
+            <h3 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">No Paths In Progress</h3>
+            <p className="mb-6 max-w-md text-gray-600 dark:text-gray-400">
+              Start a learning path to track your progress and continue your learning journey.
+            </p>
+            <Button onClick={() => setIsGenerateModalOpen(true)} leftIcon={<Plus size={16} />}>
+              Generate Learning Path
+            </Button>
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {/* Generate Learning Path Modal */}
+      <Dialog open={isGenerateModalOpen} onOpenChange={setIsGenerateModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Generate Learning Path</DialogTitle>
+            <DialogDescription>
+              Create a personalized learning path based on your goals, available time, and interests.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div>
+              <label htmlFor="target_date" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Target Completion Date
+              </label>
+              <Input
+                id="target_date"
+                name="target_date"
+                type="date"
+                value={formData.target_date}
+                onChange={handleInputChange}
+                min={new Date().toISOString().split("T")[0]}
+                className="w-full"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="study_hours" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Study Hours per Week
+              </label>
+              <Input
+                id="study_hours"
+                name="study_hours"
+                type="number"
+                value={formData.study_hours}
+                onChange={handleInputChange}
+                min={1}
+                max={40}
+                className="w-full"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Skills You Want to Learn
+              </label>
+              <div className="space-y-2">
+                {formData.selected_skills.map((skill, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <Input
+                      value={skill}
+                      onChange={(e) => handleSkillChange(index, e.target.value)}
+                      placeholder="e.g., Python, Machine Learning, Web Development"
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeSkill(index)}
+                      disabled={formData.selected_skills.length === 1}
+                    >
+                      <X size={16} />
+                      <span className="sr-only">Remove skill</span>
+                    </Button>
                   </div>
-                  <span className="rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300">
-                    {path.match_percentage}% Match
-                  </span>
-                </div>
-                <div className="mb-4 flex items-center text-sm text-gray-600 dark:text-gray-400">
-                  <Clock size={16} className="mr-2" />
-                  <span>{path.duration}</span>
-                </div>
-                <Button variant="outline" fullWidth onClick={() => navigate(`/learning-path/${path.id}`)}>
-                  View Path
+                ))}
+                <Button type="button" variant="outline" size="sm" onClick={addSkill} leftIcon={<Plus size={16} />}>
+                  Add Skill
                 </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsGenerateModalOpen(false)} disabled={isGenerating}>
+              Cancel
+            </Button>
+            <Button onClick={handleGeneratePath} disabled={isGenerating}>
+              {isGenerating ? (
+                <>
+                  <Loader className="mr-2 h-4 w-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                "Generate Path"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

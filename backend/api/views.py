@@ -143,12 +143,15 @@ class GenerateLearningPath(APIView):
             duration = f"{weeks} weeks"
             
             # Try to use Gemini API if API key is available
-            gemini_api_key = os.environ.get('GEMINI_API_KEY')
-            if gemini_api_key:
-                try:
-                    # Configure the Gemini API
+            gemini_api_key = "AIzaSyAvbTWyW4-EOf5-l_f1zSZ66Jf4pS1Br_s"
+            
+            # For testing purposes, we'll create a structured path even if Gemini API is not available
+            try:
+                # Configure the Gemini API if available
+                if gemini_api_key:
                     genai.configure(api_key=gemini_api_key)
-                    model = genai.GenerativeModel('gemini-pro')
+
+                    model = genai.GenerativeModel('gemini-1.5-flash')
                     
                     # Create a structured prompt for Gemini
                     prompt = f"""
@@ -257,9 +260,13 @@ class GenerateLearningPath(APIView):
                     serializer = LearningPathSerializer(learning_path)
                     return Response(serializer.data, status=status.HTTP_201_CREATED)
                     
-                except Exception as e:
-                    print(f"Error using Gemini API: {str(e)}")
-                    # Fall back to the structured data generation below
+                else:
+                    # If Gemini API key is not available, use the fallback method
+                    raise Exception("Gemini API key not available, using fallback method")
+                    
+            except Exception as e:
+                print(f"Error using Gemini API or parsing response: {str(e)}")
+                # Fall back to the structured data generation below
             
             # If Gemini API is not available or failed, create structured data manually
             # Create a learning path with realistic data
@@ -495,6 +502,52 @@ class GenerateLearningPath(APIView):
                     }
                 ]
             }
+            
+            # Create journeys based on selected skills
+            for skill in selected_skills:
+                skill_lower = skill.lower()
+                
+                # Find the matching journey structure or use default
+                journey_structure = None
+                for key in journey_structures:
+                    if key in skill_lower:
+                        journey_structure = journey_structures[key]
+                        break
+                
+                if not journey_structure:
+                    journey_structure = default_journey
+                
+                # Create the journey
+                journey = LearningJourney.objects.create(
+                    title=journey_structure["title"],
+                    description=journey_structure["description"],
+                    learning_path=learning_path,
+                    user=request.user,
+                    total_lessons=len(journey_structure["topics"]),
+                    completed_lessons=0,
+                    progress=0
+                )
+                
+                # Create topics and quizzes
+                for i, topic_data in enumerate(journey_structure["topics"]):
+                    topic = Topic.objects.create(
+                        title=topic_data["title"],
+                        description=topic_data["description"],
+                        learning_journey=journey,
+                        order=i+1,
+                        duration=topic_data["duration"]
+                    )
+                    
+                    # Create quizzes for the topic
+                    for j, quiz_data in enumerate(topic_data["quizzes"]):
+                        Quiz.objects.create(
+                            title=quiz_data["title"],
+                            description=quiz_data["description"],
+                            topic=topic,
+                            duration=quiz_data["duration"],
+                            difficulty=quiz_data["difficulty"],
+                            questions_count=quiz_data["questions_count"]
+                        )
             
             # Record user activity
             UserActivity.record_activity(request.user)
@@ -745,3 +798,183 @@ class UserDetailView(APIView):
         
         serializer = UserSerializer(request.user)
         return Response(serializer.data)
+
+class AskAITutorView(APIView):
+    """
+    Ask a question to the AI tutor using Gemini API
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def post(self, request, format=None):
+        question = request.data.get('question')
+        
+        if not question:
+            return Response(
+                {"error": "Question is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Record user activity
+            UserActivity.record_activity(request.user)
+            
+            # Try to use Gemini API if API key is available
+            gemini_api_key = "AIzaSyAvbTWyW4-EOf5-l_f1zSZ66Jf4pS1Br_s"
+            
+            if gemini_api_key:
+                # Configure the Gemini API
+                genai.configure(api_key=gemini_api_key)
+                model = genai.GenerativeModel('gemini-1.5-flash')
+                
+                # Create a prompt for Gemini
+                prompt = f"""
+                You are an AI tutor for the EduSmart learning platform. Answer the following question from a student:
+                
+                Question: {question}
+                
+                Provide a helpful, educational response that explains the concept clearly. 
+                Keep your answer concise but informative, and use examples where appropriate.
+                """
+                
+                # Generate content with Gemini
+                response = model.generate_content(prompt)
+                
+                # Return the response
+                return Response({
+                    "answer": response.text
+                })
+            else:
+                # If Gemini API is not available, provide a fallback response
+                fallback_responses = [
+                    "I understand your question about this topic. The key concept to understand is that it involves multiple interconnected principles. First, consider the fundamental elements, then how they relate to each other. Does that help clarify things?",
+                    "That's an excellent question! This topic is fascinating because it combines theoretical concepts with practical applications. Think about how the underlying principles apply in different contexts. Would you like me to elaborate on any specific aspect?",
+                    "Your question touches on an important area of study. The main thing to remember is that this concept builds on foundational knowledge while introducing new perspectives. Try approaching it from different angles to gain a deeper understanding.",
+                    "I'd be happy to help with this. The concept you're asking about can be understood through a step-by-step approach. Start with the basic definition, then explore how it applies in various scenarios. Does that give you a better understanding?",
+                    "This is a common question many students have. The key insight is to recognize the patterns and relationships within the topic. Once you see how the different elements connect, the concept becomes much clearer."
+                ]
+                
+                import random
+                return Response({
+                    "answer": random.choice(fallback_responses)
+                })
+                
+        except Exception as e:
+            print(f"Error using AI tutor: {str(e)}")
+            return Response(
+                {"error": f"Failed to get response from AI tutor: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class RecommendationsView(APIView):
+    """
+    Get personalized learning recommendations
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request, format=None):
+        try:
+            # Record user activity
+            UserActivity.record_activity(request.user)
+            
+            # Get user's completed topics to understand their interests
+            completed_topics = Topic.objects.filter(
+                learning_journey__user=request.user,
+                is_completed=True
+            )
+            
+            # Get user's quiz results to understand their strengths and weaknesses
+            quiz_results = QuizResult.objects.filter(user=request.user)
+            
+            # In a real app, we would use this data to generate personalized recommendations
+            # For now, we'll return some sample recommendations
+            
+            recommendations = [
+                {
+                    "title": "Machine Learning Fundamentals",
+                    "description": "Based on your interest in data science, this course will help you master the basics of machine learning algorithms.",
+                    "reason": "Matches your interests in Python and data analysis",
+                    "match_percentage": 95
+                },
+                {
+                    "title": "Advanced JavaScript Concepts",
+                    "description": "Take your web development skills to the next level with advanced JavaScript patterns and techniques.",
+                    "reason": "Complements your web development knowledge",
+                    "match_percentage": 88
+                },
+                {
+                    "title": "Data Visualization with Python",
+                    "description": "Learn how to create compelling visualizations to communicate your data insights effectively.",
+                    "reason": "Builds on your Python skills",
+                    "match_percentage": 92
+                }
+            ]
+            
+            return Response(recommendations)
+            
+        except Exception as e:
+            print(f"Error generating recommendations: {str(e)}")
+            return Response(
+                {"error": f"Failed to generate recommendations: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class SaveQuizResultView(APIView):
+    """
+    Save a quiz result
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def post(self, request, format=None):
+        quiz_id = request.data.get('quiz_id')
+        score = request.data.get('score')
+        
+        if not quiz_id or score is None:
+            return Response(
+                {"error": "Quiz ID and score are required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Get the quiz
+            quiz = Quiz.objects.get(id=quiz_id)
+            
+            # Create or update the quiz result
+            quiz_result, created = QuizResult.objects.update_or_create(
+                user=request.user,
+                quiz=quiz,
+                defaults={
+                    'score': score,
+                    'date_taken': timezone.now().date()
+                }
+            )
+            
+            # Mark the quiz as completed
+            quiz.is_completed = True
+            quiz.completed_at = timezone.now()
+            quiz.save()
+            
+            # Record user activity
+            UserActivity.record_activity(request.user)
+            
+            # Update user stats
+            try:
+                user_stats = request.user.stats
+                user_stats.update_stats()
+            except UserStats.DoesNotExist:
+                pass
+            
+            return Response({
+                "message": "Quiz result saved successfully",
+                "quiz_result": QuizResultSerializer(quiz_result).data
+            })
+            
+        except Quiz.DoesNotExist:
+            return Response(
+                {"error": "Quiz not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to save quiz result: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

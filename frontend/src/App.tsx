@@ -16,6 +16,7 @@ import Login from "./pages/Login"
 import Register from "./pages/Register"
 import NotFound from "./pages/NotFound"
 import Journey from "./pages/Journey"
+import Profile from "./pages/Profile"
 
 // Components
 import ProtectedRoute from "./components/ProtectedRoute"
@@ -26,8 +27,8 @@ import { ThemeProvider } from "./contexts/ThemeContext"
 
 function App() {
   return (
-    <ThemeProvider>
-      <Router>
+    <Router>
+      <ThemeProvider>
         <AuthProvider>
           <Toaster
             position="top-right"
@@ -42,6 +43,12 @@ function App() {
           />
           <Routes>
             {/* Public routes */}
+            <Route path="/" element={<MainLayout />}>
+              <Route index element={<Home />} />
+              <Route path="*" element={<NotFound />} />
+            </Route>
+
+            {/* Auth routes */}
             <Route element={<AuthLayout />}>
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
@@ -56,18 +63,13 @@ function App() {
                 <Route path="/quiz/:id" element={<QuizDetail />} />
                 <Route path="/parent" element={<ParentDashboard />} />
                 <Route path="/journey/:journeyId" element={<Journey />} />
+                <Route path="/profile" element={<Profile />} />
               </Route>
-            </Route>
-
-            {/* Public home page */}
-            <Route element={<MainLayout />}>
-              <Route path="/" element={<Home />} />
-              <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>
         </AuthProvider>
-      </Router>
-    </ThemeProvider>
+      </ThemeProvider>
+    </Router>
   )
 }
 

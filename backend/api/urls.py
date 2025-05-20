@@ -13,7 +13,10 @@ from .views import (
     TopicUpdateView,
     UserStatsView,
     QuizPerformanceView,
-    LearningInsightsView
+    LearningInsightsView,
+    AskAITutorView,
+    RecommendationsView,
+    SaveQuizResultView
 )
 
 urlpatterns = [
@@ -27,6 +30,9 @@ urlpatterns = [
     path('user-stats/', UserStatsView.as_view(), name='user-stats'),
     path('quiz-performance/', QuizPerformanceView.as_view(), name='quiz-performance'),
     path('learning-insights/', LearningInsightsView.as_view(), name='learning-insights'),
+    path('ask-ai-tutor/', AskAITutorView.as_view(), name='ask-ai-tutor'),
+    path('recommendations/', RecommendationsView.as_view(), name='recommendations'),
+    path('save-quiz-result/', SaveQuizResultView.as_view(), name='save-quiz-result'),
     
     # Authentication endpoints
     path('auth/register/', RegisterView.as_view(), name='register'),
